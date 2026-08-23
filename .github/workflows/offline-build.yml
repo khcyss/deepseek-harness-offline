@@ -1,0 +1,115 @@
+name: Build and Publish dsh Offline Package
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Resolve latest dsh version
+        id: version
+        shell: pwsh
+        run: |
+          $latest = (npm view @deepseek-ai/dsh dist-tags.latest) -join ''
+          $current = ((Get-Content latest-version.txt -Raw) -join '').Trim()
+          $date = Get-Date -Format 'yyyy-MM-dd'
+          "latest=$latest" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "current=$current" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "build_date=$date" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Output "remote latest=$latest current=$current"
+
+      - name: Decide whether to build
+        id: check
+        shell: bash
+        run: |
+          if [ "${{ steps.version.outputs.latest }}" = "${{ steps.version.outputs.current }}" ]; then
+            echo "No update; skip build."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "New version detected."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build node_modules bundle
+        if: steps.check.outputs.should_build == 'true'
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.version.outputs.latest }}"
+          New-Item -ItemType Directory -Force -Path bundle | Out-Null
+          Push-Location bundle
+          Set-Content -Path package.json -Value '{ "name": "dsh-offline", "private": true }' -Encoding utf8
+          $env:NODE_OPTIONS = "--max-old-space-size=6144"
+          npm install "@deepseek-ai/dsh@$ver" --omit=dev --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw "npm install failed (exit $LASTEXITCODE)" }
+          Pop-Location
+          Write-Output "bundle built for $ver"
+
+      - name: Assemble launcher templates
+        if: steps.check.outputs.should_build == 'true'
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.version.outputs.latest }}"
+          $date = "${{ steps.version.outputs.build_date }}"
+          Copy-Item templates/dsh.cmd bundle/dsh.cmd
+          Copy-Item templates/check-node.cmd bundle/check-node.cmd
+          (Get-Content 'templates/安装说明.md' -Raw).Replace('{DSH_VERSION}',$ver).Replace('{BUILD_DATE}',$date) | Set-Content 'bundle/安装说明.md' -Encoding utf8
+
+      - name: Create zip
+        if: steps.check.outputs.should_build == 'true'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path bundle -DestinationPath deepseek-harness-offline-win-x64.zip -CompressionLevel Optimal
+          $mb = [math]::Round((Get-Item deepseek-harness-offline-win-x64.zip).Length / 1MB, 1)
+          Write-Output "zip created: $mb MB"
+
+      - name: Self-check zip
+        if: steps.check.outputs.should_build == 'true'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path _check | Out-Null
+          Expand-Archive -Path deepseek-harness-offline-win-x64.zip -DestinationPath _check -Force
+          $bin = '_check/bundle/node_modules/@deepseek-ai/dsh/lib/bin.js'
+          if (-not (Test-Path $bin)) { throw "self-check failed: $bin missing" }
+          $pkg = Get-Content '_check/bundle/node_modules/@deepseek-ai/dsh/package.json' -Raw | ConvertFrom-Json
+          if ($pkg.version -ne "${{ steps.version.outputs.latest }}") { throw "self-check failed: bundled version $($pkg.version)" }
+          if ((Get-Item deepseek-harness-offline-win-x64.zip).Length -lt 50MB) { throw "self-check failed: zip too small" }
+          Write-Output "self-check ok: bundled $($pkg.version)"
+
+      - name: Commit version bump
+        if: steps.check.outputs.should_build == 'true'
+        shell: bash
+        run: |
+          echo "${{ steps.version.outputs.latest }}" > latest-version.txt
+          git config user.name "khcyss[bot]"
+          git config user.email "khcyss[bot]@users.noreply.github.com"
+          git add latest-version.txt
+          git commit -m "chore: bump offline package to ${{ steps.version.outputs.latest }}"
+          git push origin HEAD:main
+
+      - name: Publish GitHub Release
+        if: steps.check.outputs.should_build == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          VER="${{ steps.version.outputs.latest }}"
+          TAG="dsh-$VER"
+          gh release delete "$TAG" --repo khcyss/deepseek-harness-offline --yes --cleanup-tag >/dev/null 2>&1 || true
+          gh release create "$TAG" deepseek-harness-offline-win-x64.zip \
+            --repo khcyss/deepseek-harness-offline \
+            --title "dsh $VER 离线包" \
+            --notes "DeepSeek Harness offline package for Windows x64 (dsh $VER, built ${{ steps.version.outputs.build_date }}). Download then extract to D:\deepseek-harness\bundle per the included install guide."
