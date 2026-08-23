@@ -24,7 +24,9 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          $latest = (npm view @deepseek-ai/dsh dist-tags.latest) -join ''
+          $latest = ((npm view @deepseek-ai/dsh dist-tags.latest) -join '').Trim()
+          if ($LASTEXITCODE -ne 0) { throw "npm view failed (exit $LASTEXITCODE)" }
+          if (-not $latest) { throw "npm view returned no version" }
           $current = ((Get-Content latest-version.txt -Raw) -join '').Trim()
           $date = Get-Date -Format 'yyyy-MM-dd'
           "latest=$latest" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
