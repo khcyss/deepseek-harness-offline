@@ -7,3 +7,12 @@
 - 详见离线包内 `安装说明.md`
 
 仓库由 GitHub Actions 定时自动维护（`.github/workflows/offline-build.yml`）。
+
+## 可下载的离线配套工具（`downloads/`）
+
+| 文件 | 说明 |
+| --- | --- |
+| `dsh-routing-suite-offline-win-x64.zip` | dsh-routing-suite 离线套装（injector v0.3.3 + Router Standard/Spec/React 预设），一条命令装配、全程离线；安装步骤见包内 `安装说明.md` |
+| `pnpm-offline-win-x64.zip` | 离线 pnpm 11.23.0（免安装）：解压后 `setx PATH "%PATH%;D:\pnpm-offline"` 重开终端即可用 |
+
+> dsh 本体离线包（随 npm 新版本自动构建）请到 **[Releases](https://github.com/khcyss/deepseek-harness-offline/releases)** 页下载 `deepseek-harness-offline-win-x64.zip`，无需在本仓库内提交二进制。

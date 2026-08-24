@@ -1,0 +1,5 @@
+# 离线压缩包按二进制对待，不做文本 diff
+downloads/*.zip -diff
+
+# Windows 批处理统一 LF（仓库内）
+*.cmd text eol=lf
