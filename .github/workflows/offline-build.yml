@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -111,6 +113,8 @@ jobs:
             git add latest-version.txt
             git commit -m "chore: bump offline package to ${{ steps.version.outputs.latest }}"
           fi
+          # bring in anything pushed to main while this run was in flight, then push
+          git pull --rebase origin main
           git push origin HEAD:main
 
       - name: Publish GitHub Release
