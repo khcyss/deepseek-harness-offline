@@ -108,14 +108,15 @@ jobs:
           git config user.name "khcyss[bot]"
           git config user.email "khcyss[bot]@users.noreply.github.com"
           if git diff --quiet -- latest-version.txt; then
-            echo "latest-version.txt unchanged; skip commit"
+            echo "latest-version.txt unchanged; nothing to commit or push"
           else
             git add latest-version.txt
             git commit -m "chore: bump offline package to ${{ steps.version.outputs.latest }}"
+            # clear any autocrlf noise so rebase sees a pristine tree, then bring main current
+            git checkout -- . 2>/dev/null || true
+            git pull --rebase origin main
+            git push origin HEAD:main
           fi
-          # bring in anything pushed to main while this run was in flight, then push
-          git pull --rebase origin main
-          git push origin HEAD:main
 
       - name: Publish GitHub Release
         if: steps.check.outputs.should_build == 'true'
