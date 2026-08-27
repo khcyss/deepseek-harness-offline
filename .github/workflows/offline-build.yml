@@ -8,7 +8,7 @@ on:
       force:
         description: 'Force rebuild even if npm version is unchanged'
         required: false
-        default: 'false'
+        default: false
         type: boolean
 
 permissions:
@@ -105,8 +105,12 @@ jobs:
           echo "${{ steps.version.outputs.latest }}" > latest-version.txt
           git config user.name "khcyss[bot]"
           git config user.email "khcyss[bot]@users.noreply.github.com"
-          git add latest-version.txt
-          git commit -m "chore: bump offline package to ${{ steps.version.outputs.latest }}"
+          if git diff --quiet -- latest-version.txt; then
+            echo "latest-version.txt unchanged; skip commit"
+          else
+            git add latest-version.txt
+            git commit -m "chore: bump offline package to ${{ steps.version.outputs.latest }}"
+          fi
           git push origin HEAD:main
 
       - name: Publish GitHub Release
