@@ -1,0 +1,4 @@
+# CI packaging artifacts (never commit)
+/bundle/
+/_check/
+/*.zip
