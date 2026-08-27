@@ -68,6 +68,7 @@ jobs:
           $date = "${{ steps.version.outputs.build_date }}"
           Copy-Item templates/dsh.cmd bundle/dsh.cmd
           Copy-Item templates/check-node.cmd bundle/check-node.cmd
+          Copy-Item templates/setup.cmd bundle/setup.cmd
           (Get-Content 'templates/安装说明.md' -Raw).Replace('{DSH_VERSION}',$ver).Replace('{BUILD_DATE}',$date) | Set-Content 'bundle/安装说明.md' -Encoding utf8
 
       - name: Create zip
