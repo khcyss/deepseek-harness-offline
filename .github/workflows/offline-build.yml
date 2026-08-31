@@ -32,8 +32,10 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          $latest = ((npm view @deepseek-ai/dsh dist-tags.latest) -join '').Trim()
-          if ($LASTEXITCODE -ne 0) { throw "npm view failed (exit $LASTEXITCODE)" }
+          # Newest PUBLISHED version across all dist-tags (latest/next/alpha/...),
+          # so dev previews on the alpha channel are still packaged.
+          $latest = (node .github/scripts/latest-dsh-version.mjs).Trim()
+          if ($LASTEXITCODE -ne 0) { throw "latest-dsh-version.mjs failed (exit $LASTEXITCODE)" }
           if (-not $latest) { throw "npm view returned no version" }
           $current = ((Get-Content latest-version.txt -Raw) -join '').Trim()
           $date = Get-Date -Format 'yyyy-MM-dd'
